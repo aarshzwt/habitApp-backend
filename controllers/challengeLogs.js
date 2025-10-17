@@ -20,6 +20,7 @@ async function getLogs(req, res) {
 
         const logs = await challengeLogs.findAll({
             where: { user_id, challenge_id },
+            order: [['date', 'DESC']]
         });
 
         return res.status(200).json({ logs })
