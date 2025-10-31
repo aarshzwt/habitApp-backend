@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const { where } = require('sequelize');
 const db = require("../models");
-const { newHabitXP, calculateStreak, calculateMaxStreak, weeklyCalculateStreak } = require('../utils/utilityFunctions');
+const { newHabitXP, calculateStreak, calculateMaxStreak, weeklyCalculateStreak, getPagination, getPagingData } = require('../utils/utilityFunctions');
 const { addXP } = require('./stats');
 const habits = db.habits
 const habitLogs = db.habitLogs
@@ -223,11 +223,19 @@ async function getHabitById(req, res) {
 
 async function getHabitsByUser(req, res) {
     const user_id = req.id;
+    const { page, limit } = req.query;
+    const { _page, _limit, offset } = getPagination(page, limit);
+    
     try {
-        const habitsRes = await habits.findAll({
+        const { rows, count } = await habits.findAndCountAll({
+            offset,
+            limit: _limit,
             where: { user_id, is_archived: false }
         })
-        return res.status(200).json({ habits: habitsRes });
+        return res.status(200).json({
+            habits: rows,
+            ...getPagingData(count, _page, _limit),
+        });
     } catch (error) {
         console.log(error)
         return res.status(500).json({ error: error });

@@ -4,24 +4,29 @@ const { col } = require('sequelize');
 const db = require("../models");
 const challenge = db.challenges;
 const challengeParticipants = db.challengeParticipants;
+const { getPagination, getPagingData } = require('../utils/utilityFunctions');
 
 async function getChallenges(req, res) {
     try {
         const user_id = req.id;
-        const challenges = await challenge.findAll({
+        const { page, limit } = req.query;
+        const { _page, _limit, offset } = getPagination(page, limit);
+
+        const { rows, count } = await challenge.findAndCountAll({
+            offset,
+            limit: _limit,
             include: [
                 {
                     model: challengeParticipants,
                     as: "participants",
                     required: false,
                     where: { user_id },
-                    attributes: ["status", "start_date", "end_date"]
-                }
-            ]
+                    attributes: ["status", "start_date", "end_date"],
+                },
+            ],
         });
 
-        // simplify the response
-        const formatted = challenges.map(ch => {
+        const formatted = rows.map((ch) => {
             const plain = ch.get({ plain: true });
             const participant = plain.participants?.[0] || null;
 
@@ -32,15 +37,19 @@ async function getChallenges(req, res) {
                 duration_days: plain.duration_days,
                 category_id: plain.category_id,
                 created_by: plain.created_by,
-                // new flattened field
                 joined: !!participant,
-                ...(participant && { joinStatus: participant.status }),
-                ...(participant && { joinStartDate: participant.start_date }),
-                ...(participant && { joinEndDate: participant.end_date }),
-            }
+                ...(participant && {
+                    status: participant.status,
+                    startDate: participant.start_date,
+                    endDate: participant.end_date,
+                }),
+            };
         });
 
-        return res.status(200).json({ challenges: formatted });
+        return res.status(200).json({
+            challenges: formatted,
+            ...getPagingData(count, _page, _limit),
+        });
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: "server error" });
@@ -76,55 +85,53 @@ async function getChallengeById(req, res) {
 async function getChallengesByUser(req, res) {
     try {
         const user_id = req.id;
-        const userChallenges = await challengeParticipants.findAll({
-            where: {
-                user_id,
-            },
-            attributes: ['challenge_id']
-        })
-        let challenges = [];
-        for (const chlng of userChallenges) {
-            const currentChallenge = await challenge.findOne({
-                where: { id: chlng.challenge_id },
-                attributes: [
-                    'id',
-                    'title',
-                    'description',
-                    'duration_days',
-                    'habit_id',
-                    [col('participants.start_date'), 'start_date'],
-                    [col('participants.end_date'), 'end_date'],
-                    [col('participants.status'), 'status'],
-                ],
-                include: [{
-                    model: db.categories,
-                    as: 'category',
-                    attributes: ['id', 'name', 'image'],
-                    required: false
-                },
-                {
-                    model: db.challengeParticipants,
-                    as: 'participants',
-                    where: {
-                        user_id,
-                    },
-                    attributes: [],
-                    required: false
-                },
-                {
-                    model: db.users,
-                    as: 'creator',
-                    attributes: ['id', 'username', 'email', 'role'],
-                    required: false
+        const { page, limit } = req.query;
+        const { _page, _limit, offset } = getPagination(page, limit);
 
-                }],
-            });
-            challenges = [...challenges, currentChallenge]
-        }
-        return res.status(200).json({ challenges })
+        const status = req.query.status;
+        const where = { user_id };
+        if (status) where.status = status;
+
+        const { rows, count } = await challengeParticipants.findAndCountAll({
+            where,
+            offset,
+            limit: _limit,
+            include: [
+                {
+                    model: challenge,
+                    as: "challenge",
+                    attributes: ["id", "title", "description", "duration_days", "habit_id"],
+                    include: [
+                        {
+                            model: db.categories,
+                            as: "category",
+                            attributes: ["id", "name", "image"],
+                        },
+                        {
+                            model: db.users,
+                            as: "creator",
+                            attributes: ["id", "username", "email", "role"],
+                        },
+                    ],
+                },
+            ],
+            attributes: ["start_date", "end_date", "status"],
+        });
+
+        const formatted = rows.map((item) => ({
+            ...item.challenge.get({ plain: true }),
+            start_date: item.start_date,
+            end_date: item.end_date,
+            status: item.status,
+        }));
+
+        return res.status(200).json({
+            challenges: formatted,
+            ...getPagingData(count, _page, _limit),
+        });
     } catch (err) {
         console.log(err);
-        return res.status(500).json({ error: "server error" })
+        return res.status(500).json({ error: "server error" });
     }
 }
 

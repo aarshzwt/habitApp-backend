@@ -6,19 +6,18 @@ const cron = require("node-cron");
 
 const db = require("../models");
 const path = require('path');
+const { addXP, calculateStreak, calculateAllLogCompletionStatus, habitLogXP, missedXP, streakXP, allLogsInDayXP, } = require('../utils/utilityFunctions');
 
 const LAST_RUN_FILE = path.join(__dirname, "lastChallengeLogRun.json");
 
-const challenge = db.challenges;
-const challengeParticipants = db.challengeParticipants;
-const challengeLogs = db.challengeLogs;
+const today = dayjs().format("YYYY-MM-DD");
 
 async function getLogs(req, res) {
     try {
         const user_id = req.id;
         const challenge_id = req.params.challenge_id;
 
-        const logs = await challengeLogs.findAll({
+        const logs = await db.challengeLogs.findAll({
             where: { user_id, challenge_id },
             order: [['date', 'DESC']]
         });
@@ -35,7 +34,7 @@ async function getLogsOfUser(req, res) {
         const user_id = req.id;
         // const challenge_id = req.params.id;
 
-        const logs = await challengeLogs.findAll({
+        const logs = await db.challengeLogs.findAll({
             where: { user_id },
         });
 
@@ -50,7 +49,7 @@ async function getLogById(req, res) {
     try {
         const id = req.params.id;
 
-        const log = await challengeLogs.findAll({
+        const log = await db.challengeLogs.findAll({
             where: { id },
         });
 
@@ -65,7 +64,7 @@ async function getAllLogsOfChallenge(req, res) {
     try {
         const challenge_id = req.params.challenge_id;
 
-        const logs = await challengeLogs.findAll({
+        const logs = await db.challengeLogs.findAll({
             where: { challenge_id },
         });
 
@@ -77,59 +76,82 @@ async function getAllLogsOfChallenge(req, res) {
     }
 }
 
-async function createChallengeLog(req, res) {
+async function updateChallengeLog(req, res) {
+    const id = req.params.challenge_id;
+    const user_id = req.id;
+    const { status } = req.body
+
     try {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayDate = new Date(todayStr);
-
-        const user_id = req.id;
-
-        const existingChallenges = await challengeParticipants.findAll({
+        const log = await db.challengeLogs.findOne({
             where: {
-                user_id,
-                start_date: { [Op.lte]: todayStr },
-                [Op.or]: [
-                    { end_date: null },
-                    { end_date: { [Op.gte]: todayStr } }
-                ]
-            },
-            attributes: ['id', 'challenge_id']
-        })
-        console.log(existingChallenges)
-        if (existingChallenges) {
-            for (const existingChallenge of existingChallenges) {
-                const logsUptoToday = await challengeLogs.findOne({
-                    where: {
-                        user_id,
-                        id: existingChallenge.id,
-                        challenge_id: existingChallenge.challenge_id
-                    },
-                    order: [['date', 'DESC']]
-                });
+                id, user_id
+            }
+        });
+        if (!log) return res.status(404).json({ message: "Log not found" });
 
-                let currentDate = lastLog
-                    ? new Date(lastLog.date)
-                    : new Date(habit.start_date);
+        if (!["completed", "remaining", "missed"].includes(status)) {
+            return res.status(400).json({ message: "Invalid Status" });
+        }
+        const previousStatus = log.status;
+        const logs = await db.challengeLogs.findAll({
+            where: { user_id, challenge_id: log.challenge_id },
+            order: [['date', 'DESC']],
+        });
+        const oldStreak = await calculateStreak(logs);
 
+        await log.update({ status })
+
+        //avoiding the db call for single status change output
+        const newLogs = logs.map(l => {
+            if (l.id === log.id) {
+                return { ...l.toJSON(), status };
+            }
+            return l.toJSON();
+        });
+        const newStreak = await calculateStreak(newLogs);
+
+        // XP for habit completion
+        if (status === "completed" && previousStatus !== "completed") {
+            await addXP(user_id, habitLogXP);
+            if (newStreak > 0 && newStreak % 7 === 0) {
+                await addXP(user_id, streakXP); // credit the 1-week streak bonus XP
+            }
+
+            // Addition of bonus XP if all habit due today are marked completed
+            const res = await calculateAllLogCompletionStatus(user_id);
+            if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === res.logsInaDay) {
+                await addXP(user_id, allLogsInDayXP)
             }
         }
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({ error: "server error" });
-    }
-}
-async function updateChallengeLog(req, res) {
-    try {
+        //XP for when state changes from completed to missed
+        else if (status === "missed" && previousStatus === "completed") {
+            await addXP(user_id, -habitLogXP + missedXP);// deduct bonus XP plus add missed log XP penalty
 
+            const brokeStreak = oldStreak > newStreak && oldStreak % 7 === 0 && newStreak % 7 !== 0;
+            if (brokeStreak) {
+                await addXP(user_id, -streakXP); // Deduct bonus streak XP when marking the status missed causes it to break
+            }
+
+            // Deduction of bonus XP of allLogsCompletedToday if credited earlier
+            const res = await calculateAllLogCompletionStatus(user_id);
+            if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === (res.logsInaDay - 1)) {
+                await addXP(user_id, -allLogsInDayXP) //deducting bonus xp
+            }
+        }
+        //XP for when state changes from missed to remaining 
+        else if (status === "remaining" && previousStatus === "missed") {
+            await addXP(user_id, -missedXP) //credit the missed XP deduction
+        }
+
+        return res.json({ message: "Challenge Log status updated", status: log.status });
     } catch (err) {
         console.log(err);
-        return res.status(500).json({ error: "server error" });
+        return res.status(500).json({ error: err });
     }
 }
 
 if (process.env.APP_ENV === "development") {
     (setTimeout(async () => {
-        const today = dayjs().format("YYYY-MM-DD");
         // --- Check if already ran today ---
         let lastRun = null;
         if (fs.existsSync(LAST_RUN_FILE)) {
@@ -141,6 +163,7 @@ if (process.env.APP_ENV === "development") {
         }
         console.log("running")
         await createMissingChallengeLogs();
+        await markMissed();
         fs.writeFileSync(LAST_RUN_FILE, JSON.stringify({ lastRun: today }));
         console.log("completed")
     }, 3000));
@@ -149,6 +172,7 @@ if (process.env.APP_ENV === "development") {
     cron.schedule('* * * * *', async () => {
         console.log("running")
         await createDailyChallengeLogs();
+        await markMissed();
         console.log("completed")
     });
 }
@@ -156,8 +180,6 @@ if (process.env.APP_ENV === "development") {
 // This function will create challenge logs for all active participants for today
 async function createDailyChallengeLogs() {
     try {
-        const today = dayjs().format("YYYY-MM-DD");
-
         // Get all active challenge participants
         const participants = await db.challengeParticipants.findAll({
             where: {
@@ -177,8 +199,6 @@ async function createDailyChallengeLogs() {
         }
 
         // 2️⃣ Filter out participants who already have a log for today
-        const participantIds = participants.map(p => p.id);
-
         const existingLogs = await db.challengeLogs.findAll({
             where: {
                 challenge_id: { [Op.in]: participants.map(p => p.challenge_id) },
@@ -209,6 +229,7 @@ async function createDailyChallengeLogs() {
 
         await db.challengeLogs.bulkCreate(logsToCreate);
         console.log(`Created ${logsToCreate.length} challenge logs for ${today}.`);
+        return;
     } catch (err) {
         console.error("Error creating challenge logs:", err);
     }
@@ -218,7 +239,6 @@ async function createDailyChallengeLogs() {
 
 async function createMissingChallengeLogs(startDate = null, endDate = null) {
     try {
-        const today = dayjs().format("YYYY-MM-DD");
         // Fetch all active participants
         const participants = await db.challengeParticipants.findAll({
             where: {
@@ -241,7 +261,7 @@ async function createMissingChallengeLogs(startDate = null, endDate = null) {
             // Determine start for creating logs
             const participantStart = dayjs(p.start_date);
             const logStart = startDate ? dayjs(startDate) : participantStart;
-            const logEnd = endDate ? dayjs(endDate) : dayjs(today);
+            const logEnd = endDate ? dayjs(endDate) : p.end_date > today ? dayjs(today) : dayjs(p.end_date);
 
             // Find existing logs for this participant
             const existingLogs = await db.challengeLogs.findAll({
@@ -285,7 +305,74 @@ async function createMissingChallengeLogs(startDate = null, endDate = null) {
     }
 }
 
-module.exports = createDailyChallengeLogs;
+async function todaysChallenges(req, res) {
+    const user_id = req.id;
+    try {
+        const challenges = await db.challengeLogs.findAll({
+            where: { user_id, date: today },
+            include: [{
+                model: db.challenges,
+                as: 'challenge',
+                attributes: ['title', 'description'],
+                required: true
+            }]
+        });
+        const result = challenges.map(ch => {
+            return {
+                id: ch.challenge_id,
+                log_id: ch.id,
+                date: ch.date,
+                status: ch.status,
+                title: ch.challenge.title,
+                description: ch.challenge.description
+            }
+        });
 
+        res.status(200).json({ challenge: result });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Something went wrong" });
+    }
+}
 
-module.exports = { getLogs, getAllLogsOfChallenge, getLogById, getLogsOfUser, updateChallengeLog }
+async function markMissed() {
+    try {
+        const logs = await db.challengeLogs.findAll(
+            {
+                where: {
+                    status: 'remaining',
+                    date: { [Op.lt]: today },
+                },
+                attributes: ['id', 'user_id'],
+            }
+        );
+        if (logs.length === 0) {
+            console.log("No logs to mark as missed today");
+            return;
+        }
+
+        await db.challengeLogs.update(
+            { status: 'missed' },
+            {
+                where: {
+                    id: logs.map(l => l.id)
+                }
+            }
+        );
+
+        const userMissCount = {};
+        logs.forEach(log => {
+            userMissCount[log.user_id] = (userMissCount[log.user_id] || 0) + 1;
+        });
+
+        for (const [userId, missCount] of Object.entries(userMissCount)) {
+            await addXP(userId, missCount * missedXP)
+        }
+
+        console.log(`Marked ${logs.length} challenge logs as missed and deducted XP`);
+    } catch (err) {
+        console.log(err)
+    }
+}
+
+module.exports = { getLogs, getAllLogsOfChallenge, getLogById, getLogsOfUser, updateChallengeLog, todaysChallenges }

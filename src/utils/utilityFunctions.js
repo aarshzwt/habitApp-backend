@@ -106,4 +106,22 @@ async function addXP(id, amount) {
     }
 }
 
-module.exports = { addXP, calculateStreak, weeklyCalculateStreak, calculateMaxStreak, calculateAllLogCompletionStatus, newHabitXP, habitLogXP, streakXP, missedXP, allLogsInDayXP }
+const getPagination = (page, limit) => {
+    const _page = Math.max(parseInt(page) || 1, 1);
+    const _limit = Math.max(parseInt(limit) || 10, 1);
+    const offset = (_page - 1) * _limit;
+
+    return { _page, _limit, offset };
+};
+
+const getPagingData = (count, page, itemsPerPage) => ({
+    pagination: {
+        total: count,
+        page,
+        itemsPerPage,
+        totalPages: Math.ceil(count / itemsPerPage),
+    }
+});
+
+
+module.exports = { addXP, calculateStreak, weeklyCalculateStreak, calculateMaxStreak, calculateAllLogCompletionStatus, getPagination, getPagingData, newHabitXP, habitLogXP, streakXP, missedXP, allLogsInDayXP }

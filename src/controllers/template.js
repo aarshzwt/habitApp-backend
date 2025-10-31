@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const db = require("../models");
+const { getPagingData, getPagination } = require('../utils/utilityFunctions');
 // const habits = db.habits
 // const habitLogs = db.habitLogs
 const habitTemplates = db.habitTemplates;
@@ -21,8 +22,10 @@ async function getTemplateById(req, res) {
 }
 async function getTemplates(req, res) {
     try {
-        const { limit = 10, offset = 0 } = req.body;
-        const templates = await habitTemplates.findAll({
+        const { page, limit } = req.query;
+        const { _page, _limit, offset } = getPagination(page, limit);
+
+        const { rows, count } = await habitTemplates.findAndCountAll({
             include: [{
                 model: db.categories,
                 as: 'category',
@@ -33,15 +36,14 @@ async function getTemplates(req, res) {
             offset,
             order: [['createdAt', 'DESC']]
         });
-        const formatted = templates.map(template => ({
+        const formatted = rows.map(template => ({
             id: template.id,
             title: template.title,
             description: template.description,
             categoryName: template.category?.name || "Uncategorized",
             categoryImage: template.category?.image || "/placeholder.jpg"
         }));
-        const total = await habitTemplates.count();
-        return res.json({ templates: formatted, total })
+        return res.json({ templates: formatted, ...getPagingData(count, _page, _limit), })
     } catch (err) {
         console.log(err);
         return res.status(500).json({ error: "server error" })
