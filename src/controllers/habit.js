@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const { where } = require('sequelize');
 const db = require("../models");
 const { newHabitXP, calculateStreak, calculateMaxStreak, weeklyCalculateStreak, getPagination, getPagingData } = require('../utils/utilityFunctions');
 const { addXP } = require('./stats');
@@ -13,7 +12,6 @@ async function createHabit(req, res) {
     try {
         const user_id = req.id
         let { title, description, frequency_type, category_id, is_archived = false, frequency_value, frequency_days, start_date, end_date = null, template } = req.body;
-        console.log(is_archived)
 
         const habit = await habits.create({ user_id, title, description, frequency_type, category_id, is_archived, frequency_value, frequency_days, start_date, end_date })
         await addXP(user_id, newHabitXP);
@@ -225,7 +223,7 @@ async function getHabitsByUser(req, res) {
     const user_id = req.id;
     const { page, limit } = req.query;
     const { _page, _limit, offset } = getPagination(page, limit);
-    
+
     try {
         const { rows, count } = await habits.findAndCountAll({
             offset,

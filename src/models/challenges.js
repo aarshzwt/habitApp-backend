@@ -18,15 +18,6 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             allowNull: true
         },
-        habit_id: {
-            type: DataTypes.INTEGER,
-            allowNull: true,
-            references: {
-                model: 'habits',
-                key: 'id',
-            },
-            onDelete: 'CASCADE',
-        },
         category_id: {
             type: DataTypes.INTEGER,
             allowNull: true,

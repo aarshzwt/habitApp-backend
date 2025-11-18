@@ -1,34 +1,13 @@
 require('dotenv').config();
 
 const db = require("../models");
-const { calculateStreak } = require('../utils/utilityFunctions');
-const Habits = db.habits;
-const HabitLogs = db.habitLogs;
-const Users = db.users;
+
 
 async function getUserStats(req, res) {
     try {
         const id = req.id;
-        const user = await Users.findByPk(id);
+        const user = await db.users.findByPk(id);
         if (!user) return res.status(404).json({ message: "User not found" });
-
-        const habits = await Habits.findAll({ where: { user_id: id } });
-
-        const streaks = await Promise.all(
-            habits.map(async (habit) => {
-                const logs = await HabitLogs.findAll({
-                    where: { user_id: id, habit_id: habit.id },
-                    order: [['date', 'DESC']],
-                });
-                const streak = await calculateStreak(logs);
-
-                return {
-                    habitId: habit.id,
-                    title: habit.title,
-                    streak,
-                };
-            })
-        );
 
         const data = {
             username: user.username,
@@ -36,7 +15,7 @@ async function getUserStats(req, res) {
             currentXP: user.currentXP,
             totalXP: user.totalXP,
             level: user.level,
-            streaks,
+            timezone: user.timezone
         }
 
         return res.status(200).json({ data });
@@ -45,48 +24,55 @@ async function getUserStats(req, res) {
         return res.status(500).json({ message: "Error fetching user stats" });
     }
 };
-
 async function editOrDeleteUser(req, res) {
-    const mode = req.body.mode;
-    const formData = req.body.formData;
-
-    // const user_id = req.id;
     const id = req.params.id;
+
     if (!id) {
-        return res.status(400).json({ message: "id not provided" });
+        return res.status(400).json({ error: "id not provided" })
     }
-    try {
-        if (mode === "edit") {
-            const updated = await Users.update(
-                { ...formData },
+    const user = await db.users.findOne({ where: { id } })
+    if (!user) {
+        return res.status(404).json({ error: "User not found" })
+    }
+    if (!req.body) {
+        return res.status(400).json({ error: "Mode is required" })
+    }
+    let { mode, ...body } = req.body;
+
+    if (mode === "edit") {
+        try {
+            await db.users.update(
+                { ...body },
+                { where: { id } }
+            );
+            return res.status(200).json({ message: "User Updated" })
+
+        } catch (err) {
+            console.log(err);
+            return res.status(500).json({ error: err })
+        }
+    } else if (mode === "delete") {
+        try {
+            await db.users.Delete(
                 {
                     where: {
-                        id
+                        id, user_id
                     }
                 }
             );
-            console.log(updated);
-            return res.status(500).json({ message: "updation successfull" })
+            return res.status(200).json({ message: "Habit Deleted successfully" })
+        } catch (err) {
+            console.log(err);
+            return res.status(500).json({ message: "Server Error" })
         }
-        else if (mode === "delete") {
-            const deleted = await Users.Delete({
-                where: {
-                    id
-                }
-            });
-            console.log(deleted);
-            return res.status(500).json({ message: "deletion successfull" })
-        }
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({ message: "server error" })
     }
 }
 
+
 async function getLeaderboard(req, res) {
     try {
-        const users = await Users.findAll({
-            order: [['level', 'DESC'], ['totalXP', 'DESC']],
+        const users = await db.users.findAll({
+            order: [['level', 'DESC'], ['totalXP', 'DESC'], ['currentXP', 'DESC']],
             take: 10
         })
         return res.status(200).json({ users })
@@ -97,4 +83,4 @@ async function getLeaderboard(req, res) {
 
 }
 
-module.exports = { getUserStats, getLeaderboard }
+module.exports = { getUserStats, getLeaderboard, editOrDeleteUser }

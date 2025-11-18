@@ -50,6 +50,7 @@ db.categories = require("./category")(sequelize, Sequelize.DataTypes)
 db.challenges = require("./challenges")(sequelize, Sequelize.DataTypes)
 db.challengeParticipants = require("./challenge_participants")(sequelize, Sequelize.DataTypes)
 db.challengeLogs = require("./challenge_logs")(sequelize, Sequelize.DataTypes)
+db.subscriptions = require("./subscriptions")(sequelize, Sequelize.DataTypes)
 
 //User has many Habits
 db.users.hasMany(db.habits, {
@@ -101,6 +102,14 @@ db.challengeParticipants.belongsTo(db.users, {
   foreignKey: 'user_id',
   onDelete: 'CASCADE',
   as: 'user',
+});
+
+//ChallengeParticipant belongs to a participant
+db.challengeLogs.belongsTo(db.challengeParticipants, {
+  foreignKey: 'challenge_id',
+  targetKey: 'challenge_id',
+  onDelete: 'CASCADE',
+  as: 'participant',
 });
 
 //Challenge belongs to a category

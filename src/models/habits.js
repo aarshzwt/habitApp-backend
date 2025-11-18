@@ -24,7 +24,7 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.TEXT,
         },
         frequency_type: {
-            type: DataTypes.ENUM('daily', 'every_x_days', 'x_times_per_week'), // e.g., 'daily', 'weekly'
+            type: DataTypes.ENUM('daily', 'every_x_days', 'x_times_per_week'),
             allowNull: false,
             defaultValue: 'daily',
         },

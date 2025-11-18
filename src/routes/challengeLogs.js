@@ -9,7 +9,7 @@ router.get("/user", authorizeRole(['user', 'admin']), getLogsOfUser); // get use
 router.get("/:challenge_id", authorizeRole(['user', 'admin']), getLogs); // get logs of user with given challenge_id
 router.get("/log/:id", authorizeRole(['user', 'admin']), getLogById); // get log of given id
 router.get("/challenge/:challenge_id", authorizeRole(['user', 'admin']), getAllLogsOfChallenge); // get all partcipant's logs of given challenge_id
-router.patch("/:challenge_id", authorizeRole(['user', 'admin']), updateChallengeLog); //update user's log of given challenge_id
+router.patch("/:id", authorizeRole(['user', 'admin']), updateChallengeLog); //update user's log of given challenge_id
 router.get("/user/today", authorizeRole(['user', 'admin']), todaysChallenges); // get user's all logs of all challenges
 
 

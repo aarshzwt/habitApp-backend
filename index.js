@@ -1,48 +1,26 @@
-const express = require('express');
-const path = require('path');
-const { Sequelize } = require('sequelize');
-const db = require('./models');
-
-const app = express();
-const cors = require('cors');
-
-app.use("/uploads/image", express.static(path.join(__dirname, "uploads/image")));
-
-const authRoutes = require('./routes/auth');
-const habitRoutes = require('./routes/habit');
-const habitLogRoutes = require('./routes/habitLog');
-const userRoutes = require('./routes/user');
-const templateRoutes = require("./routes/template");
-const categoryRoutes = require("./routes/category");
-const challengeRoutes = require("./routes/challenge");
-const challengeLogRoutes = require("./routes/challengeLogs");
+require('dotenv').config();
+const app = require('./src/services/app');
+const db = require('./src/models');
+const runDevReset = require('./src/services/resetDev');
+const initResetScheduler = require('./src/scheduler/resetScheduler');
+const configureVapid = require('./src/services/webpush');
 
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: 'http://localhost:3000',
-  methods: '*',
-  credentials: true
-}));
-
-app.use(express.json());
-app.use("/api/auth", authRoutes);
-app.use("/api/habit", habitRoutes)
-app.use("/api/habitLog", habitLogRoutes)
-app.use("/api/user", userRoutes)
-app.use("/api/templates", templateRoutes)
-app.use("/api/category", categoryRoutes)
-app.use("/api/challenges", challengeRoutes)
-app.use("/api/challengeLogs", challengeLogRoutes)
-
-app.get('/', (req, res) => {
-  res.send('Sequelize is working!');
-});
+configureVapid(app);
 
 // Sync Sequelize models
 db.sequelize.sync({ alter: true })
-  .then(() => {
+  .then(async () => {
     console.log('Database synced');
+
+    if (process.env.APP_ENV === "development") {
+      (setTimeout(runDevReset, 3000));
+    }
+    if (process.env.APP_ENV === "production") {
+      initResetScheduler();
+    }
+
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });

@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
         challenge_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
-            refrences: {
+            references: {
                 model: 'challenges',
                 key: 'id',
             },
@@ -18,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
         user_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
-            refrences: {
+            references: {
                 model: 'users',
                 key: 'id',
             },
@@ -31,11 +31,16 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.DATEONLY,
             allowNull: true,
         },
+        retracted_date: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+            defaultValue: null,
+        },
         status: {
-            type: DataTypes.ENUM('active', 'completed', 'failed', 'retracted'),
+            type: DataTypes.ENUM('active', 'completed', 'failed', 'retracted', 'scheduled'),
             allowNull: false,
             defaultValue: 'active',
-        }
+        },
     }, {
         timestamps: true,
         tableName: 'challenge_participants',

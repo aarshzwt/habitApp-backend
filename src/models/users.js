@@ -38,6 +38,15 @@ module.exports = (sequelize, DataTypes) => {
         level: {
             type: DataTypes.INTEGER,
             defaultValue: 1,
+        },
+        timezone: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            defaultValue: 'UTC',
+        },
+        next_reset_at: {
+            type: DataTypes.DATE,
+            allowNull: true,
         }
     }, {
         timestamps: true,

@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { col } = require('sequelize');
+const { Op } = require('sequelize');
 const db = require("../models");
 const challenge = db.challenges;
 const challengeParticipants = db.challengeParticipants;
@@ -60,38 +60,55 @@ async function getChallenges(req, res) {
 async function getChallengeById(req, res) {
     try {
         const id = req.params.id;
+
         const challengeResponse = await challenge.findOne({
             where: { id },
-            include: [{
-                model: challengeParticipants,
-                as: 'participants',
-                attributes: ['id', 'start_date', 'end_date', 'status'],
-                required: false,
-                include: [{
-                    model: db.users,
-                    as: 'user',
-                    required: true,
-                    attributes: ['id', 'username', 'email', 'role']
-                }],
-            }]
+            include: [
+                {
+                    model: challengeParticipants,
+                    as: "participants",
+                    required: false,
+                    attributes: [
+                        "id",
+                        "start_date",
+                        "end_date",
+                        "status",
+                        [db.sequelize.literal('`participants->user`.`id`'), 'user_id'],
+                        [db.sequelize.literal('`participants->user`.`username`'), 'username'],
+                        [db.sequelize.literal('`participants->user`.`email`'), 'email'],
+                        [db.sequelize.literal('`participants->user`.`role`'), 'role'],
+                    ],
+                    include: [
+                        {
+                            model: db.users,
+                            as: "user",
+                            attributes: [],
+                        },
+                    ],
+                },
+            ],
         });
-        return res.status(200).json({ challenge: challengeResponse })
+
+        return res.status(200).json({ challenge: challengeResponse });
     } catch (err) {
         console.log(err);
         return res.status(500).json({ error: "server error" });
     }
 }
 
+
 async function getChallengesByUser(req, res) {
     try {
         const user_id = req.id;
-        const { page, limit } = req.query;
+        const { page, limit, status } = req.query;
         const { _page, _limit, offset } = getPagination(page, limit);
 
-        const status = req.query.status;
         const where = { user_id };
-        if (status) where.status = status;
-
+        if (status === "active") {
+            where.status = { [Op.in]: ["active", "scheduled"] };
+        } else if (status === "past") {
+            where.status = { [Op.notIn]: ["active", "scheduled"] }; // everything except active
+        }
         const { rows, count } = await challengeParticipants.findAndCountAll({
             where,
             offset,
@@ -100,18 +117,12 @@ async function getChallengesByUser(req, res) {
                 {
                     model: challenge,
                     as: "challenge",
-                    attributes: ["id", "title", "description", "duration_days", "habit_id"],
+                    attributes: ["id", "title", "description", "duration_days", [db.sequelize.literal('`challenge->creator`.`id`'), 'created_by'],
+                        [db.sequelize.literal('`challenge->category`.`id`'), 'category_id'],
+                    ],
                     include: [
-                        {
-                            model: db.categories,
-                            as: "category",
-                            attributes: ["id", "name", "image"],
-                        },
-                        {
-                            model: db.users,
-                            as: "creator",
-                            attributes: ["id", "username", "email", "role"],
-                        },
+                        { model: db.categories, as: "category", attributes: [] },
+                        { model: db.users, as: "creator", attributes: [] },
                     ],
                 },
             ],
@@ -130,13 +141,14 @@ async function getChallengesByUser(req, res) {
             ...getPagingData(count, _page, _limit),
         });
     } catch (err) {
-        console.log(err);
+        console.log(err)
         return res.status(500).json({ error: "server error" });
     }
 }
 
 async function createChallenge(req, res) {
     try {
+        const user_id = req.id
         const { title, description, duration_days, habit_id, category_id } = req.body;
 
         const challengeData = {
@@ -145,7 +157,7 @@ async function createChallenge(req, res) {
             duration_days,
             ...habit_id && { habit_id },
             ...category_id && { category_id },
-            created_by: req.user.id
+            created_by: user_id
         }
 
         const newChallenge = await challenge.create(challengeData);

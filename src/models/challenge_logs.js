@@ -44,19 +44,5 @@ module.exports = (sequelize, DataTypes) => {
         }
     });
 
-    // Habit.associate = (models) => {
-    //     // Habit belongs to a User
-    //     Habit.belongsTo(models.User, {
-    //         foreignKey: 'user_id',
-    //         onDelete: 'CASCADE',
-    //     });
-
-    //     // Habit has many HabitLogs
-    //     Habit.hasMany(models.HabitLog, {
-    //         foreignKey: 'habit_id',
-    //         onDelete: 'CASCADE',
-    //     });
-    // };
-
     return ChallengeLogs;
 };

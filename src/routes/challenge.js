@@ -8,8 +8,8 @@ const { addParticipant, deleteParticipant, getChallengeParticipants } = require(
 
 router.post("/create", authorizeRole(['user']), createChallenge); //create a challenge
 router.post("/:challenge_id", authorizeRole(['user', 'admin']), editOrDeleteChallenge) // update/delete challenge
-router.post("/join/:challenege_id", authorizeRole(['admin', 'user']), addParticipant) // join a challenge
-router.delete("/leave/:id", authorizeRole(['admin', 'user']), deleteParticipant) // leave a challenge
+router.post("/join/:challenge_id", authorizeRole(['admin', 'user']), addParticipant) // join a challenge
+router.delete("/leave/:challenge_id", authorizeRole(['admin', 'user']), deleteParticipant) // leave a challenge
 // router.post("/update/:id", authorizeRole(['admin', 'user']), editOrDeleteHabit);
 router.get("/user", authorizeRole(['user', 'admin']), getChallengesByUser); // get challenges by user
 router.get("/:id", authorizeRole(['user', 'admin']), getChallengeById); // get challenge by Id

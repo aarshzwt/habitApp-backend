@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22
 
 WORKDIR /src
 
@@ -8,6 +8,10 @@ RUN npm install
 
 # Install nodemon globally for live reload
 RUN npm install -g nodemon
+
+# Ensure file watching works inside Docker on all OS
+ENV CHOKIDAR_USEPOLLING=true
+ENV NODE_ENV=development
 
 # Copy the source (optional for prod, but we'll override with volume anyway)
 COPY . .

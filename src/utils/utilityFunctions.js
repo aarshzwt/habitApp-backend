@@ -1,12 +1,18 @@
 const db = require("../models");
-const HabitLogs = db.habitLogs;
 const Users = db.users;
 
 const newHabitXP = 5;
+const newChallengeXP = 5;
+
 const habitLogXP = 10;
-const streakXP = 20;
+const challengeLogXP = 10;
+
+const WeeklyStreakXP = 20;
+
 const allLogsInDayXP = 30;
+
 const missedXP = -5;
+
 // XP thresholds per level (simple linear)
 function xpForLevel(level) {
     return 100 * level;
@@ -15,16 +21,24 @@ function xpForLevel(level) {
 async function calculateAllLogCompletionStatus(user_id) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const logsInaDay = await db.habitLogs.findAll({
+    const habitLogsInaDay = await db.habitLogs.findAll({
         where: {
             date: today,
             user_id,
         }
     });
-    const completedlogsInaDay = logsInaDay.filter(l => l.status === "completed");
+    const challengeLogsInaDay = await db.challengeLogs.findAll({
+        where: {
+            date: today,
+            user_id,
+        }
+    });
+    const logsInaDay = habitLogsInaDay.length + challengeLogsInaDay.length;
+    const completedlogsInaDay = habitLogsInaDay.filter(l => l.status === "completed").length + challengeLogsInaDay.filter(l => l.status === "completed").length
+
     return {
-        logsInaDay: logsInaDay.length,
-        completedlogsInaDay: completedlogsInaDay.length
+        logsInaDay,
+        completedlogsInaDay
     }
 }
 // Calculate streak for a habit (consecutive completed days)
@@ -42,28 +56,44 @@ async function calculateStreak(logs) {
     return streak;
 }
 
-async function weeklyCalculateStreak(logs, frequency_days) {
-    let streak = 0;
-    let today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let currentDate = new Date(today);
-    currentDate.setDate(currentDate.getDate() - frequency_days);
-    let logIndex = 0;
-    while (logIndex < logs.length) {
-        const log = logs[logIndex];
+async function weeklyCalculateStreak(logs, frequency_type, frequency_value, frequency_days) {
+    // Get the start and end of the current week (Sunday → Saturday)
+    const startOfWeek = dayjs().startOf('week').toDate();
+    const endOfWeek = dayjs().endOf('week').toDate();
+
+    // Filter logs for this week
+    const thisWeekLogs = logs.filter(log => {
         const logDate = new Date(log.date);
-        logDate.setHours(0, 0, 0, 0);
-        if (log.status === 'completed' && logDate.getTime() === currentDate.getTime()) {
-            streak++;
-            currentDate.setDate(currentDate.getDate() - frequency_days);
-        } else if (logDate < currentDate) {
-            logIndex++;
-        } else {
-            break;
-        }
+        return logDate >= startOfWeek && logDate <= endOfWeek;
+    });
+
+    // Count how many are completed
+    const completedCount = thisWeekLogs.filter(l => l.status === 'completed').length;
+
+    let totalExpected = 0;
+
+    // --- Determine how many logs were *expected* this week ---
+    if (frequency_type === 'daily') {
+        totalExpected = 7;
     }
-    return streak;
+    else if (frequency_type === 'every_x_days') {
+        // Example: every 2 days → roughly 4 per week
+        totalExpected = Math.ceil(7 / frequency_value);
+    }
+    else if (frequency_type === 'x_times_per_week' && Array.isArray(frequency_days)) {
+        totalExpected = frequency_days.length;
+    }
+
+    // Whether user has completed all this week's expected logs
+    const weekFullyCompleted = totalExpected > 0 && completedCount >= totalExpected;
+
+    return {
+        completedCount,
+        totalExpected,
+        weekFullyCompleted
+    };
 }
+
 
 async function calculateMaxStreak(logs) {
     logs.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -124,4 +154,13 @@ const getPagingData = (count, page, itemsPerPage) => ({
 });
 
 
-module.exports = { addXP, calculateStreak, weeklyCalculateStreak, calculateMaxStreak, calculateAllLogCompletionStatus, getPagination, getPagingData, newHabitXP, habitLogXP, streakXP, missedXP, allLogsInDayXP }
+module.exports = {
+    addXP,
+    calculateStreak,
+    weeklyCalculateStreak,
+    calculateMaxStreak,
+    calculateAllLogCompletionStatus,
+    getPagination,
+    getPagingData,
+    newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP
+}

@@ -3,13 +3,26 @@ require('dotenv').config();
 
 const db = require("../models");
 const { users } = db
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const tz = require("dayjs/plugin/timezone");
+dayjs.extend(utc);
+dayjs.extend(tz);
+
 
 // SIGNUP controller function
 async function createUser(req, res) {
     try {
-        let { username, email, password, role } = req.body;
+        let { username, email, password, role, timezone } = req.body;
 
-        const user = await users.create({ username, email, password, role });
+        // Compute upcoming midnight according to timezone
+        const nextResetAt = dayjs().tz(timezone)
+            .endOf("day") // today's 23:59:59
+            .add(1, "second") // now it's tomorrow 00:00:00
+            .utc() // store in DB as UTC
+            .toDate();
+
+        const user = await users.create({ username, email, password, role, timezone, next_reset_at: nextResetAt });
         const userWithoutPassword = await users.scope('defaultScope').findByPk(user.id);
         const data = { message: "User created successfully", data: userWithoutPassword }
 

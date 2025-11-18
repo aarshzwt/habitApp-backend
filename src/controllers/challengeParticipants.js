@@ -1,10 +1,12 @@
 require('dotenv').config();
 
-const { col } = require('sequelize');
+const { col, Op } = require('sequelize');
 const db = require("../models");
 const challengeParticipants = db.challengeParticipants;
-const { calculateStreak, calculateMaxStreak } = require('../utils/utilityFunctions');
+const { calculateStreak, calculateMaxStreak, addXP, newChallengeXP } = require('../utils/utilityFunctions');
+const dayjs = require("dayjs");
 
+const today = dayjs().format("YYYY-MM-DD");
 
 async function getChallengeParticipants(req, res) {
     try {
@@ -77,39 +79,113 @@ async function getChallengeParticipants(req, res) {
     }
 }
 
-async function deleteParticipant(req, res) {
+async function addParticipant(req, res) {
     try {
-        const id = req.params.id;
-        const deletedParticipant = await challengeParticipants.update(
-            { status: "retracted" },
-            {
-                where: { id },
+        const challenge_id = req.params.challenge_id;
+        const user_id = req.id;
+        const { duration, start_date } = req.body;
+        let status = "active";
+        if (!start_date) {
+            return res.status(400).json({ error: "Start date is required" });
+        }
+
+        const startDateObj = new Date(start_date);
+        const endDateObj = new Date(startDateObj);
+        endDateObj.setDate(startDateObj.getDate() + ((duration - 1) || 0));
+
+        if (start_date > today) {
+            status = "scheduled"
+        }
+
+        const joinChallenge = await db.challengeParticipants.create({
+            challenge_id,
+            user_id,
+            start_date: startDateObj,
+            end_date: endDateObj,
+            status,
+        });
+        await addXP(user_id, newChallengeXP) // + Joining Challenge XP
+
+        const participantUserIds = await db.challengeParticipants.findAll({
+            where: {
+                challenge_id,
+                user_id: { [Op.ne]: user_id },   // exclude the new joiner
+                status: "active",
+            },
+            attributes: ["user_id"],
+            raw: true,
+        });
+
+        const ids = participantUserIds.map(p => p.user_id);
+
+        if (ids.length > 0) {
+            const webpush = req.app.get("webpush");
+
+            // Fetch subscriptions of those users
+            const subscriptions = await db.subscriptions.findAll({
+                where: { user_id: ids }
             });
-        return res.status(200).json({ message: "deleted successfulyy" });
+
+            const payload = JSON.stringify({
+                title: "New Participant Joined!",
+                body: "Someone just joined your challenge 🎉",
+            });
+
+            for (const sub of subscriptions) {
+                webpush.sendNotification(
+                    {
+                        endpoint: sub.endpoint,
+                        keys: { auth: sub.auth, p256dh: sub.p256dh }
+                    },
+                    payload
+                ).catch(err => console.log("Push error:", err));
+            }
+        }
+
+        if (start_date === today) {
+            // Log today's participation
+            await db.challengeLogs.create({
+                challenge_id,
+                user_id,
+                date: today,
+            });
+        }
+
+        return res.status(200).json({
+            message: "Challenge joined successfully",
+            participant: joinChallenge,
+        });
+
     } catch (err) {
-        console.log(err);
-        return res.status(500).json({ error: "server error" })
+        console.error(err);
+        return res.status(500).json({ error: "Server error" });
     }
 }
 
-async function addParticipant(req, res) {
+async function deleteParticipant(req, res) {
     try {
-        const id = req.params.challenege_id;
-        const user_id = req.user;
-        // const { startDate, endDate } = req.body;
-        const start_date = new Date()
-        const challengeData = {
-            challenge_id: id,
-            start_date: startDate,
-            end_date: endDate,
-            user_id
+        const challenge_id = req.params.challenge_id
+        const user_id = req.id;
+
+        const retracted_date = today;
+
+        const participant = await challengeParticipants.findOne({
+            where: { challenge_id, user_id, status: { [Op.ne]: 'retracted' } },
+        })
+
+        if (!participant) {
+            return res.status(404).json({ error: 'Participant not found or already left' })
         }
 
-        const joinChallenge = await challengeParticipants.create(challengeData);
-        return res.status(200).json({ message: "Challenge joined succesfully" })
+        await participant.update({
+            status: 'retracted',
+            retracted_date,
+        })
+
+        return res.status(200).json({ message: 'Left challenge successfully' })
     } catch (err) {
-        console.log(err);
-        return res.status(500).json({ error: "server error" })
+        console.error(err)
+        return res.status(500).json({ error: 'Server error' })
     }
 }
 
