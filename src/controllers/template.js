@@ -59,6 +59,9 @@ async function getTemplates(req, res) {
                 "id",
                 "title",
                 "description",
+                "frequency_type",
+                "frequency_value",
+                "frequency_days",
                 "category_id",
                 [col("category.name"), "categoryName"],
                 [col("category.image"), "categoryImage"]

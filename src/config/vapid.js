@@ -1,14 +1,14 @@
-require('dotenv').config();
+require("dotenv").config();
 const webpush = require("web-push");
 
-function configureVapid(app) {
+function getWebPush() {
     webpush.setVapidDetails(
         "mailto:admin@yourapp.com",
         process.env.VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
     );
 
-    app.set("webpush", webpush);
+    return webpush;
 }
 
-module.exports = configureVapid;
+module.exports = getWebPush;

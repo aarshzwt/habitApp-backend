@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js",
+    "dev": "concurrently \"nodemon index.js\" \"nodemon src/worker/index.js\"",
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:undo": "sequelize-cli db:migrate:undo",
     "db:seed": "sequelize-cli db:seed:all",
@@ -17,10 +17,12 @@
   "description": "",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.63.2",
     "cors": "^2.8.5",
     "dayjs": "^1.11.18",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
     "multer": "^2.0.2",
@@ -34,6 +36,7 @@
     "yup": "^1.7.0"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "sequelize-cli": "^6.6.3"
   }
 }

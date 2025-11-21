@@ -5,6 +5,7 @@ const db = require("../models");
 const challengeParticipants = db.challengeParticipants;
 const { calculateStreak, calculateMaxStreak, addXP, newChallengeXP } = require('../utils/utilityFunctions');
 const dayjs = require("dayjs");
+const { participantQueue } = require('../services/queue');
 
 const today = dayjs().format("YYYY-MM-DD");
 
@@ -104,52 +105,14 @@ async function addParticipant(req, res) {
             end_date: endDateObj,
             status,
         });
-        await addXP(user_id, newChallengeXP) // + Joining Challenge XP
 
-        const participantUserIds = await db.challengeParticipants.findAll({
-            where: {
-                challenge_id,
-                user_id: { [Op.ne]: user_id },   // exclude the new joiner
-                status: "active",
-            },
-            attributes: ["user_id"],
-            raw: true,
+        // Push job to Redis queue
+        participantQueue.add("newParticipant", {
+            challenge_id,
+            user_id,
+            today,
+            start_date
         });
-
-        const ids = participantUserIds.map(p => p.user_id);
-
-        if (ids.length > 0) {
-            const webpush = req.app.get("webpush");
-
-            // Fetch subscriptions of those users
-            const subscriptions = await db.subscriptions.findAll({
-                where: { user_id: ids }
-            });
-
-            const payload = JSON.stringify({
-                title: "New Participant Joined!",
-                body: "Someone just joined your challenge 🎉",
-            });
-
-            for (const sub of subscriptions) {
-                webpush.sendNotification(
-                    {
-                        endpoint: sub.endpoint,
-                        keys: { auth: sub.auth, p256dh: sub.p256dh }
-                    },
-                    payload
-                ).catch(err => console.log("Push error:", err));
-            }
-        }
-
-        if (start_date === today) {
-            // Log today's participation
-            await db.challengeLogs.create({
-                challenge_id,
-                user_id,
-                date: today,
-            });
-        }
 
         return res.status(200).json({
             message: "Challenge joined successfully",

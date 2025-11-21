@@ -13,6 +13,16 @@ const allLogsInDayXP = 30;
 
 const missedXP = -5;
 
+const jobOptions = {
+    attempts: 5, // retry 5 times
+    backoff: {
+        type: "exponential",
+        delay: 5000 // 5 seconds, then 10s, 20s, 40s...
+    },
+    removeOnComplete: true,
+    removeOnFail: false, // keep failed jobs to inspect later
+}
+
 // XP thresholds per level (simple linear)
 function xpForLevel(level) {
     return 100 * level;
@@ -162,5 +172,5 @@ module.exports = {
     calculateAllLogCompletionStatus,
     getPagination,
     getPagingData,
-    newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP
+    newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP, jobOptions
 }

@@ -162,7 +162,6 @@ async function getHabitById(req, res) {
                 remaining: weeklyRemaining,
                 daysToGo
             }
-            console.log(weeklyStats)
         }
 
         const streak = await calculateStreak(logs);

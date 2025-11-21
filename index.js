@@ -3,11 +3,11 @@ const app = require('./src/services/app');
 const db = require('./src/models');
 const runDevReset = require('./src/services/resetDev');
 const initResetScheduler = require('./src/scheduler/resetScheduler');
-const configureVapid = require('./src/services/webpush');
+const getWebPush = require("./src/config/vapid");
 
 const PORT = process.env.PORT || 3000;
 
-configureVapid(app);
+app.set("webpush", getWebPush());
 
 // Sync Sequelize models
 db.sequelize.sync({ alter: true })
