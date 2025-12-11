@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const { Op, col } = require('sequelize');
 const db = require("../models");
 const { newHabitXP, calculateStreak, calculateMaxStreak, weeklyCalculateStreak, getPagination, getPagingData } = require('../utils/utilityFunctions');
 const { addXP } = require('./stats');
@@ -192,42 +193,53 @@ async function getHabitById(req, res) {
         return res.status(500).json({ error: "Internal server error" });
     }
 }
-// async function getHabitById(req, res) {
-
-//     const id = req.params.id;
-//     const user_id = req.id;
-//     try {
-//         if (!id) {
-//             return res.status(400).json({ message: "Id not provided" });
-//         }
-//         const habit = await habits.findAll({
-//             where: { id },
-//         })
-//         console.log(habit)
-//         // const logs = await db.habitLogs.findAll({
-//         //     where:{
-//         //         habit_id: id,
-//         //         user_id
-//         //     }
-//         // })
-//         // console.log(logs);
-//         return res.status(200).json({ habit });
-//     } catch (error) {
-//         console.log(error)
-//         return res.status(500).json({ error: error });
-//     }
-// }
 
 async function getHabitsByUser(req, res) {
     const user_id = req.id;
-    const { page, limit } = req.query;
+    const {
+        page,
+        limit,
+        category_id,
+        frequency_type,
+        min_frequency_value,
+        max_frequency_value,
+        search
+    } = req.query;
+
     const { _page, _limit, offset } = getPagination(page, limit);
+
+    const where = {};
+
+    if (category_id) where.category_id = Number(category_id);
+
+    if (frequency_type) where.frequency_type = frequency_type;
+
+    if (min_frequency_value) {
+        where.frequency_value = { ...where.frequency_value, [Op.gte]: Number(min_frequency_value) };
+    }
+
+    if (max_frequency_value) {
+        where.frequency_value = { ...where.frequency_value, [Op.lte]: Number(max_frequency_value) };
+    }
+
+    if (search) {
+        where[Op.or] = [
+            { title: { [Op.like]: `%${search}%` } },
+            { description: { [Op.like]: `%${search}%` } }
+        ];
+    }
 
     try {
         const { rows, count } = await habits.findAndCountAll({
             offset,
             limit: _limit,
-            where: { user_id, is_archived: false }
+            where: { ...where, user_id, is_archived: false },
+            attributes: ["id", "title", "description", "frequency_type", "frequency_value", "frequency_days", "template_id", "is_archived", "start_date", "end_date", [col('category.name'), 'categoryName'],],
+            include: [{
+                model: db.categories,
+                as: 'category',
+                attributes: []
+            }]
         })
         return res.status(200).json({
             habits: rows,

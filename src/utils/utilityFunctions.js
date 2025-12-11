@@ -1,4 +1,6 @@
+const dayjs = require("dayjs");
 const db = require("../models");
+const getWebPush = require("../config/vapid");
 const Users = db.users;
 
 const newHabitXP = 5;
@@ -12,6 +14,8 @@ const WeeklyStreakXP = 20;
 const allLogsInDayXP = 30;
 
 const missedXP = -5;
+
+const webpush = getWebPush();
 
 const jobOptions = {
     attempts: 5, // retry 5 times
@@ -163,6 +167,50 @@ const getPagingData = (count, page, itemsPerPage) => ({
     }
 });
 
+function buildHabitReminderMessage(habits) {
+    const names = habits.map(h => h.habit.title);
+
+    return {
+        title: "⏰ Habit Reminder",
+        body: `You still have pending habits: ${names.join(", ")}.`
+    };
+}
+
+function buildChallengeReminderMessage(challenges) {
+    const names = challenges.map(c => c.challenge.title);
+
+    return {
+        title: "🔥 Challenge Reminder",
+        body: `You still have pending challenge tasks: ${names.join(", ")}.`
+    };
+}
+
+async function sendCategoryNotification(userId, payload) {
+    const subscriptions = await db.subscriptions.findAll({
+        where: { user_id: userId }
+    });
+
+    if (!subscriptions.length) {
+        return false;
+    }
+
+    for (const sub of subscriptions) {
+        webpush.sendNotification(
+            {
+                endpoint: sub.endpoint,
+                keys: { auth: sub.auth, p256dh: sub.p256dh }
+            },
+            payload
+        ).catch(async err => {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+                await db.subscriptions.destroy({ where: { id: sub.id } });
+            }
+            return false;
+        });
+    }
+    return true;
+}
+
 
 module.exports = {
     addXP,
@@ -172,5 +220,8 @@ module.exports = {
     calculateAllLogCompletionStatus,
     getPagination,
     getPagingData,
+    buildHabitReminderMessage,
+    buildChallengeReminderMessage,
+    sendCategoryNotification,
     newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP, jobOptions
 }

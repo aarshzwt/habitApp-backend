@@ -10,6 +10,7 @@ const {
     allLogsInDayXP
 } = require("../utils/utilityFunctions");
 const { connection } = require("../services/queue");
+// const dayjs = require("dayjs");
 
 const xpHabitWorker = new Worker(
     "xpHabitQueue",
@@ -49,6 +50,14 @@ const xpHabitWorker = new Worker(
             if (res.logsInaDay > 1 && res.completedlogsInaDay === res.logsInaDay) {
                 await addXP(user_id, allLogsInDayXP);
             }
+
+            // const deleteReminder = await db.habitReminder.destroy({
+            //     where: {
+            //         user_id,
+            //         habit_id,
+            //         sent: false,
+            //     }
+            // })
         }
 
         else if (currentStatus === "missed" && previousStatus === "completed") {
@@ -61,10 +70,25 @@ const xpHabitWorker = new Worker(
             if (res.completedlogsInaDay === res.logsInaDay - 1) {
                 await addXP(user_id, -allLogsInDayXP);
             }
+
+            // const deleteReminder = await db.habitReminder.destroy({
+            //     where: {
+            //         user_id,
+            //         habit_id,
+            //         sent: false,
+            //     }
+            // })
         }
 
         else if (currentStatus === "remaining" && previousStatus === "missed") {
             await addXP(user_id, -missedXP);
+            // const createReminder = await db.habitReminder.create({
+            //     where: {
+            //         user_id,
+            //         habit_id,
+            //         sent: false,
+            //     }
+            // })
         }
 
         return { oldStreak, newStreak };

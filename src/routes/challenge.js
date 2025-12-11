@@ -3,7 +3,7 @@ const router = express.Router();
 
 const { authorizeRole } = require("../middleware/authorizeRole");
 const { createChallenge, getChallenges, getChallengesByUser, getChallengeById, editOrDeleteChallenge } = require("../controllers/challenge");
-const { addParticipant, deleteParticipant, getChallengeParticipants } = require("../controllers/challengeParticipants");
+const { addParticipant, deleteParticipant, getChallengeParticipants, getChallengeStats } = require("../controllers/challengeParticipants");
 // const validator = require("../validators/validator");
 
 router.post("/create", authorizeRole(['user']), createChallenge); //create a challenge
@@ -16,5 +16,6 @@ router.get("/:id", authorizeRole(['user', 'admin']), getChallengeById); // get c
 router.get("/", authorizeRole(['admin', 'user']), getChallenges); // get all challenges
 
 router.get("/:challenge_id/participants", authorizeRole(['admin', 'user']), getChallengeParticipants)
+router.get("/:id/stats", authorizeRole(['admin', 'user']), getChallengeStats);
 
 module.exports = router;

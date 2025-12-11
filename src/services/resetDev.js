@@ -3,7 +3,7 @@ const path = require("path");
 const dayjs = require("dayjs");
 const db = require("../models");
 const { createLogsUpToToday, markMissed } = require("../controllers/habitLog");
-const { createDailyChallengeLogs, markMissedChallenges } = require("../controllers/challengeLogs");
+const { createDailyChallengeLogs, markMissedChallenges, activateScheduledChallenges, updateEndedChallenges } = require("../controllers/challengeLogs");
 
 
 const LAST_RUN_FILE = path.join(__dirname, "../../lastHabitLogRun.json");
@@ -21,12 +21,14 @@ async function runDevReset() {
 
     const users = await db.users.findAll({ attributes: ["id"] });
 
+    await activateScheduledChallenges();
     for (const user of users) {
         await createLogsUpToToday(user.id);
         await markMissed(user.id);
         await createDailyChallengeLogs(user.id);
         await markMissedChallenges(user.id);
     }
+    await updateEndedChallenges();
 
     fs.writeFileSync(LAST_RUN_FILE, JSON.stringify({ lastRun: today }));
     console.log("✅ Completed dev reset.");

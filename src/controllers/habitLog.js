@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const { Op } = require('sequelize');
 const db = require("../models");
-const { addXP, calculateStreak, habitLogXP, missedXP, WeeklyStreakXP, allLogsInDayXP, calculateAllLogCompletionStatus, jobOptions } = require('../utils/utilityFunctions');
+const { addXP, missedXP, jobOptions } = require('../utils/utilityFunctions');
 const { xpQueue } = require('../services/queue');
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -15,7 +15,6 @@ async function todaysHabits(req, res) {
     const user_id = req.id;
     const today = new Date().toISOString().split("T")[0];
     try {
-
         const habits = await db.habitLogs.findAll({
             where: { user_id, date: today },
             include: [{
@@ -427,5 +426,23 @@ async function markMissed(userId) {
     }
 }
 
+async function getPendingHabits(userId = undefined) {
+    return db.habitLogs.findAll({
+        where: {
+            ...(userId && { user_id: userId }),
+            status: "remaining",
+            date: dayjs().format("YYYY-MM-DD")
+        },
+        include: [
+            {
+                model: db.habits,
+                as:"habit",
+                attributes: ["id", "title"]
+            }
+        ]
+    });
+}
 
-module.exports = { todaysHabits, updatelogStatus, markMissed, createLogsUpToToday }
+
+
+module.exports = { todaysHabits, updatelogStatus, markMissed, createLogsUpToToday, getPendingHabits }

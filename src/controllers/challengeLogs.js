@@ -205,7 +205,7 @@ async function createDailyChallengeLogs(userId) {
                 ? new Date(lastLog.date)
                 : new Date(participant.start_date);
 
-            currentDate.setDate(currentDate.getDate() + 1);
+            lastLog ? currentDate.setDate(currentDate.getDate() + 1) : currentDate.setDate(currentDate.getDate());
             let count = 0;
 
             while (currentDate <= new Date(today)) {
@@ -433,4 +433,62 @@ async function markMissedChallenges(userId) {
     }
 }
 
-module.exports = { getLogs, getAllLogsOfChallenge, getLogById, getLogsOfUser, updateChallengeLog, todaysChallenges, markMissedChallenges, createDailyChallengeLogs, createMissingChallengeLogs, updateEndedChallenges }
+async function activateScheduledChallenges() {
+    try {
+        const today = dayjs().format("YYYY-MM-DD");
+
+        // Find challenges that start today and are still scheduled
+        const scheduled = await db.challengeParticipants.findAll({
+            where: {
+                start_date: today,
+                status: "scheduled",
+            }
+        });
+
+        if (scheduled.length === 0) return;
+
+        for (const ch of scheduled) {
+            // Update status → active
+            await ch.update({ status: "active" });
+
+            // // 2️⃣ Create today's challenge log
+            // await db.challengeLogs.findOrCreate({
+            //     where: {
+            //         user_id: ch.user_id,
+            //         challenge_id: ch.challenge_id,
+            //         date: today
+            //     },
+            //     defaults: {
+            //         status: "remaining"
+            //     }
+            // });
+
+            console.log(
+                `Challenge ${ch.challenge_id} activated for user ${ch.user_id} `
+            );
+        }
+    } catch (err) {
+        console.error("Error activating scheduled challenges:", err);
+    }
+}
+
+async function getPendingChallenges(userId = undefined) {
+    return db.challengeLogs.findAll({
+        where: {
+            ...(userId && { user_id: userId }),
+            status: "remaining",
+            date: dayjs().format("YYYY-MM-DD")
+        },
+        include: [
+            {
+                model: db.challenges,
+                as: "challenge",
+                attributes: ["title"]
+            }
+        ]
+    });
+}
+
+
+
+module.exports = { getLogs, getAllLogsOfChallenge, getLogById, getLogsOfUser, updateChallengeLog, todaysChallenges, markMissedChallenges, createDailyChallengeLogs, createMissingChallengeLogs, updateEndedChallenges, activateScheduledChallenges, getPendingChallenges }
