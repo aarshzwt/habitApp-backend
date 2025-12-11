@@ -165,15 +165,6 @@ async function updatelogStatus(req, res) {
         }
         const previousStatus = log.status;
 
-        // // Get all logs for this user's habit
-        // const logs = await db.habitLogs.findAll({
-        //     where: { user_id, habit_id: log.habit_id },
-        //     order: [['date', 'DESC']],
-        // });
-
-        // Calculate Old Streaks
-        // const oldStreak = await calculateStreak(logs);
-
         // Update the current log status
         await log.update({ status })
 
@@ -188,50 +179,6 @@ async function updatelogStatus(req, res) {
         }, jobOptions);
 
         console.log("woker executed successfully")
-
-        // //avoiding the db call for single status change output
-        // const newLogs = logs.map(l => {
-        //     if (l.id === log.id) {
-        //         return { ...l.toJSON(), status };
-        //     }
-        //     return l.toJSON();
-        // });
-        // // Calculate New Streaks
-        // const newStreak = await calculateStreak(newLogs);
-
-        // // XP for habit completion
-        // if (status === "completed" && previousStatus !== "completed") {
-        //     await addXP(user_id, habitLogXP); // + Log Completion XP
-
-        //     if (newStreak > 0 && newStreak % 7 === 0) {
-        //         await addXP(user_id, WeeklyStreakXP); // + 1-week streak bonus XP
-        //     }
-
-        //     // Addition of bonus XP if all habit due today are marked completed
-        //     const res = await calculateAllLogCompletionStatus(user_id);
-        //     if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === res.logsInaDay) {
-        //         await addXP(user_id, allLogsInDayXP)
-        //     }
-        // }
-        // //XP for when state changes from completed to missed
-        // else if (status === "missed" && previousStatus === "completed") {
-        //     await addXP(user_id, -habitLogXP + missedXP);// deduct bonus XP plus add missed log XP penalty
-
-        //     const brokeStreak = oldStreak > newStreak && oldStreak % 7 === 0 && newStreak % 7 !== 0;
-        //     if (brokeStreak) {
-        //         await addXP(user_id, -WeeklyStreakXP); // Deduct bonus streak XP when marking the status missed causes it to break
-        //     }
-
-        //     // Deduction of bonus XP of allLogsCompletedToday if credited earlier
-        //     const res = await calculateAllLogCompletionStatus(user_id);
-        //     if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === (res.logsInaDay - 1)) {
-        //         await addXP(user_id, -allLogsInDayXP) //deducting bonus xp
-        //     }
-        // }
-        // //XP for when state changes from missed to remaining 
-        // else if (status === "remaining" && previousStatus === "missed") {
-        //     await addXP(user_id, -missedXP) //credit the missed XP deduction
-        // }
 
         return res.json({ message: "Habit status updated", status: log.status });
     } catch (err) {

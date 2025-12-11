@@ -61,7 +61,7 @@ async function getChallenges(req, res) {
 
         const formatted = rows.map((ch) => {
             const plain = ch.get({ plain: true });
-            const participant = plain.participants?.[0] || null;
+            const participant = plain.participants?.filter(p => p.user_id === user_id) || null;
 
             return {
                 id: plain.id,
@@ -70,11 +70,11 @@ async function getChallenges(req, res) {
                 duration_days: plain.duration_days,
                 category: plain.category?.name,
                 created_by: plain.created_by,
-                joined: !!participant,
-                ...(participant && {
-                    status: participant.status,
-                    startDate: participant.start_date,
-                    endDate: participant.end_date,
+                joined: participant.length,
+                ...(participant.length && {
+                    status: participant[0].status,
+                    startDate: participant[0].start_date,
+                    endDate: participant[0].end_date,
                 }),
             };
         });

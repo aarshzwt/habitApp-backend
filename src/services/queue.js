@@ -12,8 +12,11 @@ const connection = new Redis({
 // XP Queue
 const xpQueue = new Queue("xpHabitQueue", { connection });
 
+//challenge XP Queue
+const challengeXPQueue = new Queue("challengeXPQueue", { connection });
+
 // Participant Queue (for participants joining)
 const participantQueue = new Queue("participantQueue", { connection });
 const failedParticipantQueue = new Queue("failedParticipantQueue", { connection });
 
-module.exports = { connection, xpQueue, participantQueue, failedParticipantQueue };
+module.exports = { connection, xpQueue, challengeXPQueue, participantQueue, failedParticipantQueue };

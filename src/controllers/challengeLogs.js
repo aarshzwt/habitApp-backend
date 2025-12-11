@@ -2,7 +2,8 @@ require('dotenv').config();
 const dayjs = require("dayjs");
 const { Op, col } = require("sequelize");
 const db = require("../models");
-const { addXP, calculateStreak, calculateAllLogCompletionStatus, missedXP, WeeklyStreakXP, allLogsInDayXP, challengeLogXP, } = require('../utils/utilityFunctions');
+const { addXP, missedXP, challengeCompletionXP, jobOptions, } = require('../utils/utilityFunctions');
+const { challengeXPQueue } = require('../services/queue');
 
 const today = dayjs().format("YYYY-MM-DD");
 
@@ -74,7 +75,6 @@ async function updateChallengeLog(req, res) {
     const id = req.params.id;
     const user_id = req.id;
     const { status } = req.body
-    console.log(id, user_id)
     try {
         const log = await db.challengeLogs.findOne({
             where: {
@@ -101,63 +101,20 @@ async function updateChallengeLog(req, res) {
         }
         const previousStatus = log.status;
 
-        // Get all logs for this user's challenge
-        const logs = await db.challengeLogs.findAll({
-            where: { user_id, challenge_id: log.challenge_id },
-            order: [['date', 'DESC']],
-        });
-
-        // Calculate Old Streaks
-        const oldStreak = await calculateStreak(logs);
-
         // Update the current log status
         await log.update({ status })
 
-        //avoiding the db call for single status change output
-        const newLogs = logs.map(l => {
-            if (l.id === log.id) {
-                return { ...l.toJSON(), status };
-            }
-            return l.toJSON();
-        });
+        console.log("calling the challenge XP worker")
+        // Push job to queue
+        await challengeXPQueue.add("challenge-xp-update", {
+            user_id,
+            challenge_id: log.challenge_id,
+            log_id: log.id,
+            previousStatus,
+            currentStatus: status
+        }, jobOptions);
 
-        // Calculate New Streaks
-        const newStreak = await calculateStreak(newLogs);
-
-        // XP for challenge completion
-        if (status === "completed" && previousStatus !== "completed") {
-            await addXP(user_id, challengeLogXP); // + Log Completion XP
-
-            // + 1-week streak bonus XP
-            if (newStreak > 0 && newStreak % 7 === 0) {
-                await addXP(user_id, WeeklyStreakXP);
-            }
-
-            // Addition of bonus XP if all challenge due today are marked completed
-            const res = await calculateAllLogCompletionStatus(user_id);
-            if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === res.logsInaDay) {
-                await addXP(user_id, allLogsInDayXP)
-            }
-        }
-        //XP for when state changes from completed to missed
-        else if (status === "missed" && previousStatus === "completed") {
-            await addXP(user_id, -challengeLogXP + missedXP);// deduct bonus XP plus add missed log XP penalty
-
-            const brokeStreak = oldStreak > newStreak && oldStreak % 7 === 0 && newStreak % 7 !== 0;
-            if (brokeStreak) {
-                await addXP(user_id, -WeeklyStreakXP); // Deduct bonus streak XP when marking the status missed causes it to break
-            }
-
-            // Deduction of bonus XP of allLogsCompletedToday if credited earlier
-            const res = await calculateAllLogCompletionStatus(user_id);
-            if (res.logsInaDay && res.completedlogsInaDay && res.logsInaDay > 1 && res.completedlogsInaDay === (res.logsInaDay - 1)) {
-                await addXP(user_id, -allLogsInDayXP) //deducting bonus xp
-            }
-        }
-        //XP for when state changes from missed to remaining 
-        else if (status === "remaining" && previousStatus === "missed") {
-            await addXP(user_id, -missedXP) //credit the missed XP deduction
-        }
+        console.log("challenge XP woker executed successfully")
 
         return res.json({ message: "Challenge Log status updated", status: log.status });
     } catch (err) {
@@ -223,26 +180,6 @@ async function createDailyChallengeLogs(userId) {
             }
             console.log(`✅ Created ${count} challenge logs for user ${userId}`);
         }
-        // Filter out participant's challenges which already have a log for today
-
-        // const logsToSkip = new Set(existingLogs.map(log => log.challenge_id));
-
-        // Create logs for participant's challenge who don't have one yet
-        // const logsToCreate = participants
-        //     .filter(p => !logsToSkip.has(p.challenge_id))
-        //     .map(p => ({
-        //         challenge_id: p.challenge_id,
-        //         user_id: userId,
-        //         date: today,
-        //         status: "remaining", // default
-        //         createdAt: new Date(),
-        //         updatedAt: new Date()
-        //     }));
-
-        // if (logsToCreate.length > 0) {
-        //     await db.challengeLogs.bulkCreate(logsToCreate);
-        //     console.log(`✅ Created ${logsToCreate.length} challenge logs for user ${userId}`);
-        // }
     } catch (err) {
         console.error("Error creating challenge logs:", err);
     }
@@ -349,8 +286,14 @@ async function updateEndedChallenges() {
         // Check if all logs are completed
         const allCompleted = logs.every(l => l.status === "completed");
 
+        const newStatus = allCompleted ? "completed" : "failed"
+
+        if (newStatus === "completed") {
+            await addXP(userId, challengeCompletionXP);
+        }
+
         await challenge.update({
-            status: allCompleted ? "completed" : "failed"
+            status: newStatus
         });
         console.log(`challenge ${challengeId} for user ${userId} marked ${allCompleted ? "completed" : "failed"}`)
     }
@@ -440,7 +383,7 @@ async function activateScheduledChallenges() {
         // Find challenges that start today and are still scheduled
         const scheduled = await db.challengeParticipants.findAll({
             where: {
-                start_date: today,
+                start_date: { [Op.lte]: today },
                 status: "scheduled",
             }
         });
@@ -448,20 +391,7 @@ async function activateScheduledChallenges() {
         if (scheduled.length === 0) return;
 
         for (const ch of scheduled) {
-            // Update status → active
             await ch.update({ status: "active" });
-
-            // // 2️⃣ Create today's challenge log
-            // await db.challengeLogs.findOrCreate({
-            //     where: {
-            //         user_id: ch.user_id,
-            //         challenge_id: ch.challenge_id,
-            //         date: today
-            //     },
-            //     defaults: {
-            //         status: "remaining"
-            //     }
-            // });
 
             console.log(
                 `Challenge ${ch.challenge_id} activated for user ${ch.user_id} `

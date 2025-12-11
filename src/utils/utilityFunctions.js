@@ -13,6 +13,8 @@ const WeeklyStreakXP = 20;
 
 const allLogsInDayXP = 30;
 
+const challengeCompletionXP = 100
+
 const missedXP = -5;
 
 const webpush = getWebPush();
@@ -223,5 +225,5 @@ module.exports = {
     buildHabitReminderMessage,
     buildChallengeReminderMessage,
     sendCategoryNotification,
-    newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP, jobOptions
+    newHabitXP, habitLogXP, newChallengeXP, challengeLogXP, WeeklyStreakXP, missedXP, allLogsInDayXP, challengeCompletionXP, jobOptions
 }
