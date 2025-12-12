@@ -44,6 +44,7 @@ const participantWorker = new Worker(
             const payload = JSON.stringify({
                 title: "New Participant Joined!",
                 body: `Someone just joined the challenge '${challenge.title}' that you've been part of. 🎉`,
+                url: `http://localhost:3000/challenge/${challenge_id}`,
             });
 
             for (const sub of subscriptions) {

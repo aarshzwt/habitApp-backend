@@ -86,6 +86,7 @@ async function sendReminders() {
       const payload = JSON.stringify({
         title: "⏰Reminder: Pending Habit",
         body: `Your habit "${reminder.habit.title}" is still pending today!`,
+        url: `http://localhost:3000/`,
       });
       await sendCategoryNotification(reminder.user_id, payload);
       await reminder.update({ sent: true });
@@ -108,6 +109,7 @@ async function sendReminders() {
       const payload = JSON.stringify({
         title: "⏰Reminder: Pending Challenge",
         body: `Your challenge "${reminder.challenge.title}" still needs to be updated today!`,
+        url: `http://localhost:3000/`,
       });
       await sendCategoryNotification(reminder.user_id, payload);
       await reminder.update({ sent: true });
