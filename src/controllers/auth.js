@@ -19,7 +19,7 @@ async function createUser(req, res) {
         const nextResetAt = dayjs().tz(timezone)
             .endOf("day") // today's 23:59:59
             .add(1, "second") // now it's tomorrow 00:00:00
-            .utc() // store in DB as UTC
+            .utc()
             .toDate();
 
         const user = await users.create({ username, email, password, role, timezone, next_reset_at: nextResetAt });

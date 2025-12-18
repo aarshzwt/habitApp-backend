@@ -68,7 +68,7 @@ async function sendReminders() {
     ]
   });
 
-  if (!habitReminders && !challengeReminders) return;
+  if (!habitReminders.length && !challengeReminders.length) return;
 
   for (const reminder of habitReminders) {
 
@@ -81,7 +81,7 @@ async function sendReminders() {
           date: dayjs().format("YYYY-MM-DD"),
         }
       })
-      if (!remianingHabits) return; // if not, don't send reminder
+      if (!remianingHabits.length) return; // if not, don't send reminder
 
       const payload = JSON.stringify({
         title: "⏰Reminder: Pending Habit",
@@ -104,7 +104,7 @@ async function sendReminders() {
           date: dayjs().format("YYYY-MM-DD"),
         }
       })
-      if (!remianingChallenges) return;
+      if (!remianingChallenges.length) return;
 
       const payload = JSON.stringify({
         title: "⏰Reminder: Pending Challenge",

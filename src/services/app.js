@@ -11,6 +11,7 @@ const categoryRoutes = require("../routes/category");
 const challengeRoutes = require("../routes/challenge");
 const challengeLogRoutes = require("../routes/challengeLogs");
 const notificationRoutes = require("../routes/notification");
+const aiRoutes = require("../routes/ai")
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/category", categoryRoutes);
 app.use("/api/challenges", challengeRoutes);
 app.use("/api/challengeLog", challengeLogRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get('/', (req, res) => {
     res.send('Sequelize is working!');

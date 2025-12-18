@@ -93,6 +93,7 @@ participantWorker.on("completed", job => {
 participantWorker.on("failed", async (job, err) => {
     console.error(`Participant job ${job.id} failed:`, err);
 
+    // Alternatively add them to failer worker queue to execute them again
     // await failedParticipantQueue.add("failedParticipantQueue", {
     //     originalJob: job.data,
     //     failedAt: new Date(),
